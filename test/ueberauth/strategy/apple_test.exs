@@ -1,6 +1,7 @@
 defmodule Ueberauth.Strategy.AppleTest do
   use ExUnit.Case, async: false
-  use Plug.Test
+  import Plug.Conn
+  import Plug.Test
   import Mock
 
   alias Ueberauth.Strategy.Apple
