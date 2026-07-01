@@ -42,19 +42,19 @@ defmodule Ueberauth.Strategy.Apple do
     params =
       [response_type: "code id_token"]
       |> with_scopes_and_response_mode(conn)
-      |> with_param(:nonce, conn)
-      |> with_state_param(conn)
+      |> with_nonce(conn)
+      |> with_param(:state, conn)
 
     opts = oauth_client_options_from_conn(conn)
 
     conn
-    |> modify_state_cookie(params)
+    |> modify_ueberauth_state_cookie(params)
     |> redirect!(OAuth.authorize_url!(params, opts))
   end
 
   # If the response_mode is "form_post", then the state cookie must use SameSite=None and Secure;
-  @spec modify_state_cookie(Plug.Conn.t(), keyword) :: Plug.Conn.t()
-  defp modify_state_cookie(conn, params) do
+  @spec modify_ueberauth_state_cookie(Plug.Conn.t(), keyword) :: Plug.Conn.t()
+  defp modify_ueberauth_state_cookie(conn, params) do
     if Keyword.get(params, :response_mode) == "form_post" do
       state_cookie = conn.resp_cookies["ueberauth.state_param"]
       modified_cookie = Map.merge(state_cookie, %{same_site: "None", secure: true})
@@ -62,6 +62,15 @@ defmodule Ueberauth.Strategy.Apple do
       %{conn | resp_cookies: Map.put(conn.resp_cookies, "ueberauth.state_param", modified_cookie)}
     else
       conn
+    end
+  end
+
+  @spec with_nonce(keyword, Plug.Conn.t()) :: keyword
+  defp with_nonce(params, conn) do
+    if ueberauth_state = conn.private[:ueberauth_state_param] do
+      Keyword.put(params, :nonce, ueberauth_state)
+    else
+      params
     end
   end
 
@@ -75,10 +84,17 @@ defmodule Ueberauth.Strategy.Apple do
   @impl Ueberauth.Strategy
   @spec handle_callback!(Plug.Conn.t()) :: Plug.Conn.t()
   def handle_callback!(%Plug.Conn{params: %{"code" => code, "id_token" => token} = params} = conn) do
+    ueberauth_state_or_nil =
+      conn
+      |> Plug.Conn.fetch_cookies()
+      |> Plug.Conn.get_cookies()
+      |> Map.get("ueberauth.state_param")
+
     opts =
       oauth_client_options_from_conn(conn)
       |> with_optional(:public_keys, conn)
       |> with_client_id()
+      |> Keyword.put(:nonce, ueberauth_state_or_nil)
 
     with {:ok, token_payload} <- Token.payload(token, opts),
          user <- Map.merge(extract_user(params), extract_email_and_uid(token_payload)),

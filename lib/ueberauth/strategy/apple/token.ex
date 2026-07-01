@@ -80,7 +80,8 @@ defmodule Ueberauth.Strategy.Apple.Token do
     with :ok <- validate_issuer(fields, Keyword.get(opts, :issuer, @apple_issuer)),
          :ok <- validate_audience(fields, Keyword.get(opts, :client_id)),
          :ok <- validate_issued_time(fields),
-         :ok <- validate_expiration_time(fields) do
+         :ok <- validate_expiration_time(fields),
+         :ok <- validate_nonce(fields, Keyword.get(opts, :nonce)) do
       {:ok, fields}
     end
   end
@@ -135,4 +136,26 @@ defmodule Ueberauth.Strategy.Apple.Token do
   @spec validate_issuer(map, String.t()) :: :ok | {:error, :invalid_issuer}
   defp validate_issuer(%{"iss" => expected_issuer}, expected_issuer), do: :ok
   defp validate_issuer(_fields, _expected_issuer), do: {:error, :invalid_issuer}
+
+  # Apple documentation:
+  #
+  # nonce
+  #
+  # A string for associating a client session with the identity token. This value mitigates replay
+  # attacks and is present only if you pass it in the authorization request.
+  #
+  # nonce_supported
+  #
+  # A Boolean value that indicates whether the transaction is on a platform that supports
+  # anti-replay values. If you send an anti-replay value in the authorization request, but don’t
+  # see the anti-replay value claim in the identity token, check this claim to determine how to
+  # proceed. If this claim returns true, treat nonce as mandatory and fail the transaction;
+  # otherwise, you can proceed treating the anti-replay value as optional.
+  #
+  @spec validate_nonce(map, String.t() | nil) :: :ok | {:error, :invalid_nonce}
+  defp validate_nonce(_fields, nil), do: :ok
+  defp validate_nonce(_fields, ""), do: :ok
+  defp validate_nonce(%{"nonce" => expected_nonce}, expected_nonce), do: :ok
+  defp validate_nonce(%{"nonce_supported" => false}, _expected_nonce), do: :ok
+  defp validate_nonce(_fields, _expected_nonce), do: {:error, :invalid_nonce}
 end

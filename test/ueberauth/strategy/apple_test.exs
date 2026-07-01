@@ -88,26 +88,26 @@ defmodule Ueberauth.Strategy.AppleTest do
       assert sign_in_page =~ "response_mode=form_post"
     end
 
-    # Nonce
+    # State
 
-    test "allows a custom nonce parameter", %{conn: conn} do
-      conn = %{conn | params: %{"nonce" => "nonce-abc123"}}
+    test "allows a custom state parameter", %{conn: conn} do
+      conn = %{conn | params: %{"state" => "state-abc123"}}
       conn = Apple.handle_request!(conn)
       assert {302, headers, _body} = sent_resp(conn)
       assert %{"location" => sign_in_page} = Enum.into(headers, %{})
-      assert sign_in_page =~ "nonce=nonce-abc123"
+      assert sign_in_page =~ "state=state-abc123"
     end
 
-    # State
+    # Nonce (Ueberauth State)
 
-    test "sets state cookie", %{conn: conn} do
+    test "sets state cookie and uses it as nonce", %{conn: conn} do
       conn = Apple.handle_request!(conn)
       assert {_status, headers, _body} = sent_resp(conn)
       assert %{"location" => sign_in_page, "set-cookie" => cookie} = Enum.into(headers, %{})
       assert cookie =~ "ueberauth.state_param=state-abc123"
       assert cookie =~ "secure"
       assert cookie =~ "SameSite=None"
-      assert sign_in_page =~ "state=state-abc123"
+      assert sign_in_page =~ "nonce=state-abc123"
     end
 
     test "forces SameSite=None and Secure cookies for POST callbacks", %{conn: conn} do
@@ -166,6 +166,7 @@ defmodule Ueberauth.Strategy.AppleTest do
           strategy: Ueberauth.Strategy.Apple,
           strategy_name: :apple
         })
+        |> put_req_cookie("ueberauth.state_param", "nonce-abc123")
 
       token = sign_id_token()
 
@@ -259,7 +260,7 @@ defmodule Ueberauth.Strategy.AppleTest do
         "iat" => now - 60,
         "is_private_email" => "true",
         "iss" => "https://appleid.apple.com",
-        "nbf" => now - 60,
+        "nonce" => "nonce-abc123",
         "nonce_supported" => true,
         "sub" => "uid-abc123"
       }
@@ -337,6 +338,29 @@ defmodule Ueberauth.Strategy.AppleTest do
                }
              ] = conn.assigns.ueberauth_failure.errors
     end
+
+    test "rejects callback when nonce is supported but does not match", %{conn: conn} do
+      token = sign_id_token(%{"nonce" => "nonce-xyz789"})
+      conn = %{conn | params: %{conn.params | "id_token" => token}}
+      conn = Apple.handle_callback!(conn)
+
+      assert conn.assigns[:ueberauth_failure]
+
+      assert [
+               %{
+                 message: "Error while reading authentication token",
+                 message_key: "invalid_nonce"
+               }
+             ] = conn.assigns.ueberauth_failure.errors
+    end
+
+    test "accepts empty nonce when nonce is not supported", %{conn: conn} do
+      token = sign_id_token(%{"nonce_supported" => false, "nonce" => nil})
+      conn = %{conn | params: %{conn.params | "id_token" => token}}
+      conn = Apple.handle_callback!(conn)
+
+      assert %OAuth2.AccessToken{access_token: "access-abc123"} = conn.private[:apple_token]
+    end
   end
 
   describe "cleanup" do
@@ -411,7 +435,7 @@ defmodule Ueberauth.Strategy.AppleTest do
           "iat" => now - 60,
           "is_private_email" => "true",
           "iss" => "https://appleid.apple.com",
-          "nbf" => now - 60,
+          "nonce" => "nonce-abc123",
           "nonce_supported" => true,
           "sub" => "uid-abc123"
         },
