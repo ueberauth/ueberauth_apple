@@ -205,6 +205,8 @@ The following options are available:
 
 - `client_id`: (**Required**) OAuth client ID used during both the request and callback phases.
   This matches the reverse-domain Services ID registered with Apple.
+  It is also used to validate callback ID token `aud` claims.
+  If `client_id` is missing, callback authentication fails.
 
 - `client_secret`: (**Required**) OAuth client secret **OR** a function used to generate this secret.
   Apple restricts client secrets to a maximum lifetime of six months, so most applications will generate and cache this secret at runtime.

@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### Unreleased
+
+- **Security**: Validate `iss`, `aud`, `iat`, and `exp` claims on callback `id_token` after signature verification.
+  Callback authentication now fails closed if the expected `client_id` audience cannot be determined.
+  Client ID configuration was already required, so this should not break existing implementations.
+
 ### v0.6.1 (2023-06-21)
 
 - **Fix**: Avoid errors when email key is not present in token payload.

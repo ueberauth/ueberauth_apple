@@ -31,6 +31,10 @@ Please keep the following in mind:
 
 - Apple OAuth Client Secrets are generated from a Private Key and have a maximum lifetime of six months.
 
+- During callback validation, this strategy verifies ID token signature and registered claims.
+  The token `iss` must be `https://appleid.apple.com`, `aud` must match your configured `client_id`, `exp` must be in the future, and `iat` is allowed a small clock skew.
+  If `client_id` cannot be determined, callback authentication fails.
+
 - Users may choose not to share their information with your application, in which case an anonymized private relay email address will be supplied during the callback phase.
 
 - Apple does not supply the user's name in callback responses after the first time.
