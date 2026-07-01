@@ -188,6 +188,107 @@ defmodule Ueberauth.Strategy.AppleTest do
                "uid" => "uid-abc123"
              }
     end
+
+    test "rejects callback with invalid issuer", %{conn: conn} do
+      token = sign_id_token(%{"iss" => "https://evil.example"})
+      conn = %{conn | params: %{conn.params | "id_token" => token}}
+      conn = Apple.handle_callback!(conn)
+
+      assert conn.assigns[:ueberauth_failure]
+
+      assert [
+               %{
+                 message: "Error while reading authentication token",
+                 message_key: "invalid_issuer"
+               }
+             ] =
+               conn.assigns.ueberauth_failure.errors
+    end
+
+    test "rejects callback with invalid audience", %{conn: conn} do
+      token = sign_id_token(%{"aud" => "com.example.other-app"})
+      conn = %{conn | params: %{conn.params | "id_token" => token}}
+      conn = Apple.handle_callback!(conn)
+
+      assert conn.assigns[:ueberauth_failure]
+
+      assert [
+               %{
+                 message: "Error while reading authentication token",
+                 message_key: "invalid_audience"
+               }
+             ] = conn.assigns.ueberauth_failure.errors
+    end
+
+    test "rejects callback with expired token", %{conn: conn} do
+      now = DateTime.utc_now() |> DateTime.to_unix()
+      token = sign_id_token(%{"exp" => now - 10})
+      conn = %{conn | params: %{conn.params | "id_token" => token}}
+      conn = Apple.handle_callback!(conn)
+
+      assert conn.assigns[:ueberauth_failure]
+
+      assert [
+               %{
+                 message: "Error while reading authentication token",
+                 message_key: "expired_token"
+               }
+             ] =
+               conn.assigns.ueberauth_failure.errors
+    end
+
+    test "accepts callback when iat is within skew", %{conn: conn} do
+      now = DateTime.utc_now() |> DateTime.to_unix()
+      token = sign_id_token(%{"iat" => now + 30})
+      conn = %{conn | params: %{conn.params | "id_token" => token}}
+      conn = Apple.handle_callback!(conn)
+
+      assert %OAuth2.AccessToken{access_token: "access-abc123"} = conn.private[:apple_token]
+    end
+
+    test "rejects callback when iat is beyond skew", %{conn: conn} do
+      now = DateTime.utc_now() |> DateTime.to_unix()
+      token = sign_id_token(%{"iat" => now + 120})
+      conn = %{conn | params: %{conn.params | "id_token" => token}}
+      conn = Apple.handle_callback!(conn)
+
+      assert conn.assigns[:ueberauth_failure]
+
+      assert [
+               %{
+                 message: "Error while reading authentication token",
+                 message_key: "not_yet_valid_token"
+               }
+             ] = conn.assigns.ueberauth_failure.errors
+    end
+
+    test "rejects callback when expected audience is unavailable", %{conn: conn, token: token} do
+      original_oauth_config = Application.get_env(:ueberauth, Ueberauth.Strategy.Apple.OAuth, [])
+
+      on_exit(fn ->
+        Application.put_env(:ueberauth, Ueberauth.Strategy.Apple.OAuth, original_oauth_config)
+      end)
+
+      oauth_config_without_client_id = Keyword.delete(original_oauth_config, :client_id)
+
+      Application.put_env(
+        :ueberauth,
+        Ueberauth.Strategy.Apple.OAuth,
+        oauth_config_without_client_id
+      )
+
+      conn = %{conn | params: %{conn.params | "id_token" => token}}
+      conn = Apple.handle_callback!(conn)
+
+      assert conn.assigns[:ueberauth_failure]
+
+      assert [
+               %{
+                 message: "Error while reading authentication token",
+                 message_key: "missing_expected_audience"
+               }
+             ] = conn.assigns.ueberauth_failure.errors
+    end
   end
 
   describe "cleanup" do
