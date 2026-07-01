@@ -237,6 +237,45 @@ defmodule Ueberauth.Strategy.AppleTest do
                conn.assigns.ueberauth_failure.errors
     end
 
+    test "rejects callback with null-signed token", %{conn: conn} do
+      JOSE.unsecured_signing(true)
+
+      now = DateTime.utc_now() |> DateTime.to_unix()
+
+      claims = %{
+        "aud" => "com.example.my-app",
+        "email" => "email-abc123@privaterelay.appleid.com",
+        "email_verified" => "true",
+        "exp" => now + 600,
+        "iat" => now - 60,
+        "is_private_email" => "true",
+        "iss" => "https://appleid.apple.com",
+        "nbf" => now - 60,
+        "nonce_supported" => true,
+        "sub" => "uid-abc123"
+      }
+
+      kid = UeberauthApple.Keys.private_key().fields["kid"]
+
+      token =
+        JOSE.JWT.sign(%JOSE.JWK{}, %{"alg" => "none", "typ" => "JWT", "kid" => kid}, claims)
+        |> JOSE.JWS.compact()
+        |> elem(1)
+
+      conn = %{conn | params: %{conn.params | "id_token" => token}}
+      conn = Apple.handle_callback!(conn)
+
+      assert conn.assigns[:ueberauth_failure]
+
+      assert [
+               %{
+                 message: "Error while reading authentication token",
+                 message_key: "invalid_signature"
+               }
+             ] =
+               conn.assigns.ueberauth_failure.errors
+    end
+
     test "accepts callback when iat is within skew", %{conn: conn} do
       now = DateTime.utc_now() |> DateTime.to_unix()
       token = sign_id_token(%{"iat" => now + 30})

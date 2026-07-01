@@ -39,7 +39,8 @@ defmodule Ueberauth.Strategy.Apple.Token do
 
     with {:ok, keys} <- apply(key_mod, key_fun, key_args),
          {:ok, key} <- choose_key(keys, id_token),
-         {true, %JOSE.JWT{fields: fields}, _JWS} <- JOSE.JWT.verify(key, id_token),
+         {true, %JOSE.JWT{fields: fields}, _JWS} <-
+           JOSE.JWT.verify_strict(key, [key["alg"]], id_token),
          {:ok, validated_fields} <- validate_claims(fields, opts) do
       {:ok, validated_fields}
     else
