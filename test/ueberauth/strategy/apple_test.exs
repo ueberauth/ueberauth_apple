@@ -167,22 +167,7 @@ defmodule Ueberauth.Strategy.AppleTest do
           strategy_name: :apple
         })
 
-      jwk = UeberauthApple.Keys.private_key()
-
-      token =
-        JOSE.JWT.sign(jwk, %{"alg" => "RS256", "kid" => "key-abc123"}, %{
-          "aud" => "com.example.my-app",
-          "email" => "email-abc123@privaterelay.appleid.com",
-          "email_verified" => "true",
-          "exp" => 1_662_834_127,
-          "iat" => 1_662_747_727,
-          "is_private_email" => "true",
-          "iss" => "https://appleid.apple.com",
-          "nonce_supported" => true,
-          "sub" => "uid-abc123"
-        })
-        |> JOSE.JWS.compact()
-        |> elem(1)
+      token = sign_id_token()
 
       %{conn: conn, token: token}
     end
@@ -262,5 +247,31 @@ defmodule Ueberauth.Strategy.AppleTest do
       assert %Ueberauth.Auth.Info{email: "email-abc123@privaterelay.appleid.com"} =
                Apple.info(conn)
     end
+  end
+
+  defp sign_id_token(overrides \\ %{}) do
+    now = DateTime.utc_now() |> DateTime.to_unix()
+
+    claims =
+      Map.merge(
+        %{
+          "aud" => "com.example.my-app",
+          "email" => "email-abc123@privaterelay.appleid.com",
+          "email_verified" => "true",
+          "exp" => now + 600,
+          "iat" => now - 60,
+          "is_private_email" => "true",
+          "iss" => "https://appleid.apple.com",
+          "nbf" => now - 60,
+          "nonce_supported" => true,
+          "sub" => "uid-abc123"
+        },
+        overrides
+      )
+
+    UeberauthApple.Keys.private_key()
+    |> JOSE.JWT.sign(%{"alg" => "RS256", "kid" => "key-abc123"}, claims)
+    |> JOSE.JWS.compact()
+    |> elem(1)
   end
 end
