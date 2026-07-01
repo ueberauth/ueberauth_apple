@@ -75,10 +75,12 @@ defmodule Ueberauth.Strategy.Apple do
   @impl Ueberauth.Strategy
   @spec handle_callback!(Plug.Conn.t()) :: Plug.Conn.t()
   def handle_callback!(%Plug.Conn{params: %{"code" => code, "id_token" => token} = params} = conn) do
-    opts = oauth_client_options_from_conn(conn)
-    token_opts = with_optional([], :public_keys, conn)
+    opts =
+      oauth_client_options_from_conn(conn)
+      |> with_optional(:public_keys, conn)
+      |> with_client_id()
 
-    with {:ok, token_payload} <- Token.payload(token, token_opts),
+    with {:ok, token_payload} <- Token.payload(token, opts),
          user <- Map.merge(extract_user(params), extract_email_and_uid(token_payload)),
          {:ok, token} <- OAuth.get_access_token([code: code], opts) do
       conn
@@ -206,6 +208,13 @@ defmodule Ueberauth.Strategy.Apple do
     else
       with_optional(opts, :response_mode, conn)
     end
+  end
+
+  # Temporary: use OAuth client configuration to get client_id.
+  # This is done for backwards compatibility with existing configuration.
+  defp with_client_id(opts) do
+    client_id = OAuth.client(opts) |> Map.get(:client_id)
+    Keyword.put(opts, :client_id, client_id)
   end
 
   defp with_param(opts, key, conn) do
