@@ -220,9 +220,18 @@ defmodule Ueberauth.Strategy.AppleTest do
              ] = conn.assigns.ueberauth_failure.errors
     end
 
+    test "allows callback with expired token within clock skew", %{conn: conn} do
+      now = DateTime.utc_now() |> DateTime.to_unix()
+      token = sign_id_token(%{"exp" => now - 55})
+      conn = %{conn | params: %{conn.params | "id_token" => token}}
+      conn = Apple.handle_callback!(conn)
+
+      refute conn.assigns[:ueberauth_failure]
+    end
+
     test "rejects callback with expired token", %{conn: conn} do
       now = DateTime.utc_now() |> DateTime.to_unix()
-      token = sign_id_token(%{"exp" => now - 10})
+      token = sign_id_token(%{"exp" => now - 65})
       conn = %{conn | params: %{conn.params | "id_token" => token}}
       conn = Apple.handle_callback!(conn)
 

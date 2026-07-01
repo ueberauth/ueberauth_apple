@@ -105,7 +105,7 @@ defmodule Ueberauth.Strategy.Apple.Token do
   #
   @spec validate_expiration_time(map) :: :ok | {:error, :expired_token}
   defp validate_expiration_time(%{"exp" => exp}) when is_integer(exp) do
-    if exp > System.os_time(:second) do
+    if exp > System.os_time(:second) - @clock_skew_seconds do
       :ok
     else
       {:error, :expired_token}
