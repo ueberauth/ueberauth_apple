@@ -42,8 +42,7 @@ defmodule Ueberauth.Strategy.Apple do
     params =
       [response_type: "code id_token"]
       |> with_scopes_and_response_mode(conn)
-      |> with_nonce(conn)
-      |> with_param(:state, conn)
+      |> with_ueberauth_state_as_nonce(conn)
 
     opts = oauth_client_options_from_conn(conn)
 
@@ -65,10 +64,12 @@ defmodule Ueberauth.Strategy.Apple do
     end
   end
 
-  @spec with_nonce(keyword, Plug.Conn.t()) :: keyword
-  defp with_nonce(params, conn) do
+  @spec with_ueberauth_state_as_nonce(keyword, Plug.Conn.t()) :: keyword
+  defp with_ueberauth_state_as_nonce(params, conn) do
     if ueberauth_state = conn.private[:ueberauth_state_param] do
-      Keyword.put(params, :nonce, ueberauth_state)
+      params
+      |> Keyword.put(:nonce, ueberauth_state)
+      |> Keyword.put(:state, ueberauth_state)
     else
       params
     end
@@ -231,10 +232,6 @@ defmodule Ueberauth.Strategy.Apple do
   defp with_client_id(opts) do
     client_id = OAuth.client(opts) |> Map.get(:client_id)
     Keyword.put(opts, :client_id, client_id)
-  end
-
-  defp with_param(opts, key, conn) do
-    if value = conn.params[to_string(key)], do: Keyword.put(opts, key, value), else: opts
   end
 
   defp with_optional(opts, key, conn) do

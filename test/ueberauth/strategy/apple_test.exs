@@ -88,16 +88,6 @@ defmodule Ueberauth.Strategy.AppleTest do
       assert sign_in_page =~ "response_mode=form_post"
     end
 
-    # State
-
-    test "allows a custom state parameter", %{conn: conn} do
-      conn = %{conn | params: %{"state" => "state-abc123"}}
-      conn = Apple.handle_request!(conn)
-      assert {302, headers, _body} = sent_resp(conn)
-      assert %{"location" => sign_in_page} = Enum.into(headers, %{})
-      assert sign_in_page =~ "state=state-abc123"
-    end
-
     # Nonce (Ueberauth State)
 
     test "sets state cookie and uses it as nonce", %{conn: conn} do
@@ -107,7 +97,12 @@ defmodule Ueberauth.Strategy.AppleTest do
       assert cookie =~ "ueberauth.state_param=state-abc123"
       assert cookie =~ "secure"
       assert cookie =~ "SameSite=None"
+
+      # We use "nonce" as an anti-replay mechanism.
       assert sign_in_page =~ "nonce=state-abc123"
+
+      # Ueberauth requires uses "state" as a CSRF protection mechanism.
+      assert sign_in_page =~ "state=state-abc123"
     end
 
     test "forces SameSite=None and Secure cookies for POST callbacks", %{conn: conn} do
