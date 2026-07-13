@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-### Unreleased
+### v0.6.2 (2026-07-13)
 
 - **Security**: Validate `iss`, `aud`, `iat`, and `exp` claims on callback `id_token` after signature verification.
   Callback authentication now fails closed if the expected `client_id` audience cannot be determined.
